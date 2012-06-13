@@ -1,3 +1,4 @@
 syntax: regexp
 
 CMakeLists\.txt\.user$
+.*\.autosave$
