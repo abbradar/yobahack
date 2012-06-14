@@ -1,5 +1,5 @@
 # Compiler flags
-add_definitions("-Wall -std=c++11")
+add_definitions(-Wall -std=c++11)
 
 # Common parts
 #add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/common common)

@@ -6,13 +6,20 @@
 template <class Lock, class Lockable, class Wrapped> class LockWrapper
 {
     public:
-    explicit SharedWrapper(Lockable &lockable, Wrapped *wrapped)
+    explicit LockWrapper(Lockable &lockable, Wrapped *wrapped) noexcept
         : lock_(lockable),
           wrapped_(wrapped)
     {
     }
 
-    const Wrapped operator*()
+    LockWrapper(const LockWrapper &other) = delete;
+
+    Wrapped operator*() noexcept
+    {
+        return *wrapped_;
+    }
+
+    Wrapped operator->() noexcept
     {
         return *wrapped_;
     }
@@ -22,7 +29,7 @@ template <class Lock, class Lockable, class Wrapped> class LockWrapper
     Lock lock_;
 };
 
-template <class Lockable, class Wrapped> typedef LockWrapper<boost::shared_lock, Lockable, const Wrapped> SharedLockWrapper;
-template <class Lockable, class Wrapped> typedef LockWrapper<boost::unique_lock, Lockable, Wrapped> UniqueLockWrapper;
+template <class Lockable, class Wrapped> using SharedLockWrapper = LockWrapper<boost::shared_lock, Lockable, const Wrapped>;
+template <class Lockable, class Wrapped> using UniqueLockWrapper = LockWrapper<boost::unique_lock, Lockable, Wrapped>;
 
 #endif // LOCK_WRAPPER_H
