@@ -1,5 +1,5 @@
-#ifndef IPSERVER_HPP
-#define IPSERVER_HPP
+#ifndef YOBAHACK_SERVER_IPSERVER_H_
+#define YOBAHACK_SERVER_IPSERVER_H_
 
 #include <atomic>
 #include <list>
@@ -72,9 +72,7 @@ public:
 
     void StartService()
     {
-        if (working_) {
-            throw std::runtime_error("Service is already running");
-        }
+        if (working_) return;
         // wait for threads to finish their previous work
         // see StopService() comments
         for (std::thread &thread : threads_) {
@@ -86,13 +84,12 @@ public:
             std::thread thread(std::bind(&io_service_::run, &io_service_));
             threads_.push_back(std::move(thread));
         }
+        working_ = true;
     }
 
     void StopService()
     {
-        if (!working_) {
-            throw std::runtime_error("Service is not running");
-        }
+        if (!working_) return;
         // there is no way to receive callback when all threads are stopped
         // one way to do this is to implement own "run" function
         // which will execute io_service_.run() and then clean up thread
@@ -100,6 +97,7 @@ public:
         // maybe later
         work_.reset();
         io_service_.stop();
+        working_ = false;
     }
 
     bool is_open() noexcept
@@ -153,11 +151,6 @@ public:
         return working_;
     }
 
-    bool stopping() const noexcept
-    {
-        return stopping_;
-    }
-
     // this is sort of expensive getter, because it needs to be thread-safe
     // so it wraps ConnectionList into "mutex lock wrapper"
     SharedLockWrapper<boost::shared_lock, ConnectionList> connections() noexcept
@@ -198,4 +191,4 @@ private:
 typedef IPServer<boost::asio::ip::tcp> TCPServer;
 typedef IPServer<boost::asio::ip::udp> UDPServer;
 
-#endif // IPSERVER_HPP
+#endif // YOBAHACK_SERVER_IPSERVER_H_

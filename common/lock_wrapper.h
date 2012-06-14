@@ -1,5 +1,5 @@
-#ifndef LOCK_WRAPPER_H
-#define LOCK_WRAPPER_H
+#ifndef YOBAHACK_COMMON_LOCK_WRAPPER_H_
+#define YOBAHACK_COMMON_LOCK_WRAPPER_H_
 
 #include <boost/thread.hpp>
 
@@ -32,4 +32,4 @@ template <class Lock, class Lockable, class Wrapped> class LockWrapper
 template <class Lockable, class Wrapped> using SharedLockWrapper = LockWrapper<boost::shared_lock, Lockable, const Wrapped>;
 template <class Lockable, class Wrapped> using UniqueLockWrapper = LockWrapper<boost::unique_lock, Lockable, Wrapped>;
 
-#endif // LOCK_WRAPPER_H
+#endif // YOBAHACK_COMMON_LOCK_WRAPPER_H_
