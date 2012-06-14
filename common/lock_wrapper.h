@@ -1,8 +1,7 @@
 #ifndef YOBAHACK_COMMON_LOCK_WRAPPER_H_
 #define YOBAHACK_COMMON_LOCK_WRAPPER_H_
 
-#include <boost/thread.hpp>
-
+// this class locks given Lockable with Lock until destructed and gives access to Wrapped
 template <class Lock, class Lockable, class Wrapped> class LockWrapper
 {
     public:

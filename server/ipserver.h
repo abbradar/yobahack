@@ -13,6 +13,11 @@
 #include "common/defs.h"
 #include "common/lock_wrapper.h"
 
+// this works with one connection and is expected to work
+// 1) asynchronously
+// 2) called from io_service threads
+// 3) Free() can be called from any thread
+// User is expected to inherit this and implement its own connection handler
 template <class T> class IPConnection
         : std::enable_shared_from_this<IPConnection<T> >
 {
@@ -45,26 +50,33 @@ public:
         socket_.get_io_service().dispatch(std::bind(closed_callback_, pointer(this)));
     }
 
+    bool closing() noexcept
+    {
+        return closing;
+    }
+
 private:
     typename T::socket socket_;
     std::atomic_bool closing_ = false;
     Callback closed_callback_;
 };
 
-template <class T> class IPServer
+// multi-threaded TCP/UDP server based on thread pool
+// Connection: class inherited from IPConnection
+// Transport: expected to be boost::asio::ip::tcp or udp
+template <class Transport, class Connection> class IPServer
 {
 public:
-    typedef IPConnection<T> Connection;
-    typedef std::list<Connection::Pointer> ConnectionList;
+    typedef std::list<typename Connection::Pointer> ConnectionList;
 
-    explicit IPServer(typename T::endpoint &&endpoint) noexcept :
+    explicit IPServer(typename Transport::endpoint &&endpoint) noexcept :
         acceptor_(io_service_, endpoint),
         connections_(new ConnectionList())
     {
     }
 
     IPServer(unsigned short port_num) noexcept :
-        IPServer(T::endpoint(port_num))
+        IPServer(Transport::endpoint(port_num))
     {
     }
 
@@ -79,9 +91,11 @@ public:
             thread.join();
         }
         threads_.clear();
+        // this thing prevents io_service from going out from run() loop
         work_.reset(new boost::asio::io_service::work(io_service_));
+        // spawn threads for io_service::run event loop
         for (int i = 0; i < threads_number; ++i) {
-            std::thread thread(std::bind(&io_service_::run, &io_service_));
+            std::thread thread(std::bind(&boost::asio::io_service::run, &io_service_));
             threads_.push_back(std::move(thread));
         }
         working_ = true;
@@ -90,11 +104,12 @@ public:
     void StopService()
     {
         if (!working_) return;
-        // there is no way to receive callback when all threads are stopped
-        // one way to do this is to implement own "run" function
+        // There is no way to receive callback when all threads are stopped.
+        // One way to do this is to implement own "run" function
         // which will execute io_service_.run() and then clean up thread
-        // after itself
-        // maybe later
+        // after itself.
+        // Other way is to clean threads up on next StartService()
+        // TODO (abbradar) Maybe later
         work_.reset();
         io_service_.stop();
         working_ = false;
@@ -108,9 +123,7 @@ public:
 
     void StartListening()
     {
-        if (!working) {
-            StartService();
-        }
+        StartService();
         acceptor_.listen();
         AcceptNext();
     }
@@ -124,6 +137,9 @@ public:
     {
         // This can be source of deadlocks, exceptions,
         // nukes and other nasty things.
+        // We try to lock connections list and send Free() to all connections
+        // so they *should* be destroyed from another thread.
+        // In fact we block all io_service threads while working here
         boost::shared_lock lock(connections_mutex_);
         for (Connection::Pointer &connection : *connections_) {
             connection->Free();
@@ -159,20 +175,26 @@ public:
     }
 
 private:
+    // this creates new IPConnection and tries to receive next connection
     void AcceptNext() {
+        // if connection is never received, this object will destruct on its own because of shared_ptr
         auto pointer = std::make_shared<IPConnection>(std::bind(&ClosedCallback, this));
         acceptor_.async_accept(pointer->socket(),
-                               std::bind(&ConnectedCallback, pointer));
+                               std::bind(&ConnectedCallback, this, pointer));
     }
 
+    // this is called when connection is established
     void ConnectedCallback(Connection::Pointer &&pointer, boost::system::error_code &&e) {
         if (!e) {
+            // without errors? then push connection to list
             boost::unique_lock lock(connections_mutex_);
             connections_->push_back(pointer);
         }
+        // receive next connection
         AcceptNext();
     }
 
+    // this is called from io_service threads from connection itself
     void ClosedCallback(Connection::Pointer &&pointer) {
         boost::unique_lock lock(connections_mutex_);
         connections_->remove(pointer);
@@ -180,7 +202,7 @@ private:
 
     boost::asio::io_service io_service_;
     std::unique_ptr<boost::asio::io_service::work> work_;
-    typename T::acceptor acceptor_;
+    typename Transport::acceptor acceptor_;
     std::list<std::thread> threads_;
     std::unique_ptr<ConnectionList> connections_;
     boost::shared_mutex connections_mutex_;
