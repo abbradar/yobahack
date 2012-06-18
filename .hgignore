@@ -2,3 +2,4 @@ syntax: regexp
 
 CMakeLists\.txt\.user$
 .*\.autosave$
+qtcreator-build/
