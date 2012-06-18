@@ -18,9 +18,9 @@
 // 3) Free() can be called from any thread
 // User is expected to inherit this and implement its own connection handler
 template <class T> class IPConnection
-    : std::enable_shared_from_this<IPConnection<T> > {
+    : std::enable_shared_from_this<IPConnection<T>> {
  public:
-  typedef std::shared_ptr<IPConnection<T> > Pointer;
+  typedef std::shared_ptr<IPConnection<T>> Pointer;
   typedef std::function<void(Pointer)> Callback;
 
   explicit IPConnection(Callback &&closed_callback) noexcept {
@@ -72,19 +72,22 @@ template <class Transport, class Connection> class IPServer {
   IPServer(const IPServer &other) = delete;
 
   void StartService() {
+    using namespace boost::asio;
+    using namespace std;
+
     if (working_) return;
     // wait for threads to finish their previous work
     // see StopService() comments
-    for (std::thread &thread : threads_) {
+    for (thread &thread : threads_) {
       thread.join();
     }
     threads_.clear();
     // this thing prevents io_service from going out from run() loop
-    work_.reset(new boost::asio::io_service::work(io_service_));
+    work_.reset(new io_service::work(io_service_));
     // spawn threads for io_service::run event loop
     for (int i = 0; i < threads_number; ++i) {
-      std::thread thread(std::bind(&boost::asio::io_service::run, &io_service_));
-      threads_.push_back(std::move(thread));
+      thread thread(bind((size_t(io_service::*)())&io_service::run, &io_service_));
+      threads_.push_back(move(thread));
     }
     working_ = true;
   }
@@ -123,8 +126,8 @@ template <class Transport, class Connection> class IPServer {
     // We try to lock connections list and send Free() to all connections
     // so they *should* be destroyed from another thread.
     // In fact we block all io_service threads while working here
-    boost::shared_lock lock(connections_mutex_);
-    for (Connection::Pointer &connection : *connections_) {
+    boost::shared_lock<boost::shared_mutex> lock(connections_mutex_);
+    for (typename Connection::Pointer &connection : *connections_) {
       connection->Free();
     }
   }
@@ -149,8 +152,8 @@ template <class Transport, class Connection> class IPServer {
 
   // this is sort of expensive getter, because it needs to be thread-safe
   // so it wraps ConnectionList into "mutex lock wrapper"
-  SharedLockWrapper<boost::shared_lock, ConnectionList> connections() noexcept {
-      return SharedLockWrapper(connections_mutex_, connections_);
+  SharedLockWrapper<boost::shared_mutex, ConnectionList> connections() noexcept {
+    return SharedLockWrapper<boost::shared_mutex, ConnectionList>(connections_mutex_, connections_);
   }
 
  private:
@@ -163,10 +166,10 @@ template <class Transport, class Connection> class IPServer {
   }
 
   // this is called when connection is established
-  void ConnectedCallback(Connection::Pointer &&pointer, boost::system::error_code &&e) {
+  void ConnectedCallback(typename Connection::Pointer &&pointer, boost::system::error_code &&e) {
     if (!e) {
       // without errors? then push connection to list
-      boost::unique_lock lock(connections_mutex_);
+      boost::unique_lock<boost::shared_mutex> lock(connections_mutex_);
       connections_->push_back(pointer);
     }
     // TODO: should handle errors there
@@ -175,8 +178,8 @@ template <class Transport, class Connection> class IPServer {
   }
 
   // this is called from io_service threads from connection itself
-  void ClosedCallback(Connection::Pointer &&pointer) {
-    boost::unique_lock lock(connections_mutex_);
+  void ClosedCallback(typename Connection::Pointer &&pointer) {
+    boost::unique_lock<boost::shared_mutex> lock(connections_mutex_);
     connections_->remove(pointer);
   }
 

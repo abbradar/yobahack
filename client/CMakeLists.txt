@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
-project(yobahack-server)
+project(yobahack-client)
 
 # Common
 include(../CMakeCommon.txt)
