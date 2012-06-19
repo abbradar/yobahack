@@ -19,6 +19,8 @@ namespace logging {
     kDebug, ///< Debug information
   };
 
+  const char *LevelName(const LogMessageLevel level);
+
   /** Handles logging; receives messages and sends them to various destinations.
    * Singleton which splits logging messages between different destinations.
    * Not thread-safe.
@@ -61,7 +63,7 @@ namespace logging {
       return name_;
     }
 
-    void set_name(const std::string &&name) noexcept;
+    void set_name(const std::string name) noexcept;
 
     inline const TimeFacet &time_facet() const noexcept {
       return *time_facet_;
@@ -79,7 +81,7 @@ namespace logging {
     bool write_to_stderr_ = true;
     LogMessageLevel level_ = kNotice;
     std::string name_ = "";
-    std::unique_ptr<TimeFacet>time_facet_;
+    TimeFacet *time_facet_;
     std::stringstream msg_string_;
   };
 }
