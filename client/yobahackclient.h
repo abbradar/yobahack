@@ -10,7 +10,9 @@ class YobaHackClient : public Runnable
   YobaHackClient(const YobaHackClient &other) = delete;
   YobaHackClient(const YobaHackClient &&other) = delete;
 
- protected:
+ private:
+  ~YobaHackClient() = default;
+
   virtual int Run(int argc, const char **argv) final;
   virtual void Terminate(int error_code) noexcept final;
 };

@@ -16,7 +16,7 @@ public:
   void connect(typename Transport::endpoint &&endpoint) {
     if (connected()) disconnect();
     boost::system::error_code error;
-    //socket.connect()
+    socket->connect(endpoint);
   }
 
   bool connected() const noexcept {

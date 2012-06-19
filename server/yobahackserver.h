@@ -10,9 +10,11 @@ class YobaHackServer : public Runnable
   YobaHackServer(const YobaHackServer &other) = delete;
   YobaHackServer(const YobaHackServer &&other) = delete;
 
- protected:
-  virtual int Run(int argc, const char **argv) final;
-  virtual void Terminate(int error_code) noexcept final;
+ private:
+  ~YobaHackServer() = default;
+
+  virtual int Run(int argc, const char **argv);
+  virtual void Terminate(int error_code) noexcept;
 };
 
 #endif // YOBAHACK_SERVER_YOBAHACKSERVER_H_

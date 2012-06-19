@@ -8,9 +8,7 @@ class Application;
 
 /** Base class for runnable.
  * User should derive this to create his own runnable which can be assigned to Application.
- * Derived class is encouraged to be a singleton.
  * \sa Application
- * \sa Singleton
  */
 class Runnable {
  public:
@@ -44,8 +42,8 @@ class Application : public Singleton<Application> {
   void Abort() noexcept;
 
   /** Returns reference to currently associated application */
-  inline Runnable &runnable() noexcept {
-    return *runnable_;
+  inline Runnable *runnable() noexcept {
+    return runnable_.get();
   }
 
   /** Sets runnable to run.
