@@ -6,7 +6,7 @@
 
 using namespace std;
 
-void Application::Run() noexcept
+int Application::Run(int argc, const char **argv) noexcept
 {
   if (running_) {
     throw runtime_error("Application is already started.");
@@ -16,13 +16,14 @@ void Application::Run() noexcept
   }
   running_ = true;
   try {
-    runnable_->Run();
+    return runnable_->Run(argc, argv);
   } catch (exception &e) {
     stringstream ss;
     ss << "Unhandled exception from Run(): " << e.what();
     LogCritical(ss.str());
     Abort();
   }
+  return 1;
 }
 
 void Application::Terminate(int error_code) noexcept

@@ -7,19 +7,22 @@
 class Application;
 
 /** Base class for runnable.
- * User should inherit this to create his own runnable which can be assigned to Application.
+ * User should derive this to create his own runnable which can be assigned to Application.
+ * Derived class is encouraged to be a singleton.
  * \sa Application
+ * \sa Singleton
  */
 class Runnable {
  public:
+  Runnable() = default;
   Runnable(const Runnable &other) = delete;
   Runnable(const Runnable &&other) = delete;
 
  protected:
   friend class Application;
 
-  virtual void Run() = 0;
-  virtual void Terminate(int error_code) = 0;
+  virtual int Run(int argc, const char **argv) = 0;
+  virtual void Terminate(int error_code) noexcept = 0;
 };
 
 /** Handles running application.
@@ -34,7 +37,7 @@ class Application : public Singleton<Application> {
   Application(const Application &other) = delete;
   Application(const Application &&other) = delete;
 
-  void Run() noexcept;
+  int Run(int argc, const char **argv) noexcept;
 
   void Terminate(int error_code) noexcept;
 

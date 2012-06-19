@@ -1,9 +1,6 @@
-#include <iostream>
-#include "ipserver.h"
+#include "yobahackserver.h"
 
-using namespace std;
-
-int main() {
-  cout << "Hello World!" << endl;
-  return 0;
+int main(int argc, const char **argv) {
+  Application::instance().set_runnable(new YobaHackServer());
+  return Application::instance().Run(argc, argv);
 }
