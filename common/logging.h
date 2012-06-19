@@ -31,12 +31,6 @@ namespace logging {
     Logger(const Logger &other) = delete;
     Logger(const Logger &&other) = delete;
 
-    /** Returns single instance of Logger */
-    static inline Logger &instance() noexcept {
-      static Logger singleton;
-      return singleton;
-    }
-
     /** Sends log message to destinations */
     void Log(LogMessageLevel level, const std::string msg) noexcept;
 
@@ -63,13 +57,13 @@ namespace logging {
 
     void set_write_to_stderr(bool write_to_stderr) noexcept;
 
-    const std::string &name() const noexcept {
+    inline const std::string &name() const noexcept {
       return name_;
     }
 
     void set_name(const std::string &&name) noexcept;
 
-    const TimeFacet &time_facet() const noexcept {
+    inline const TimeFacet &time_facet() const noexcept {
       return *time_facet_;
     }
 

@@ -3,7 +3,7 @@
 #if DEBUG_LEVEL != 0
 namespace boost
 {
-  void assertion_failed_msg(const char *expr, const char *msg = NULL, const char *function, const char *file, int line) noexcept {
+  void assertion_failed_msg(const char *expr, const char *msg, const char *function, const char *file, int line) noexcept {
     // Assertions are sent for logging, then application is aborted.
     // We assume assertion fail is a critical error.
     std::stringstream ss;
@@ -16,7 +16,7 @@ namespace boost
   }
 
   void assertion_failed(const char *expr, const char *function, const char *file, int line) noexcept {
-    assertion_failed(expr, NULL, function, file, line);
+    assertion_failed_msg(expr, NULL, function, file, line);
   }
 }
 #endif
