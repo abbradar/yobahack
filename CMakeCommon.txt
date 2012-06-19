@@ -2,8 +2,8 @@
 add_definitions(-Wall -std=c++11)
 
 # Common parts
-#add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/common common)
 include_directories(${CMAKE_CURRENT_LIST_DIR})
+aux_source_directory(${CMAKE_CURRENT_LIST_DIR}/common COMMON_SRCS)
 
 # Threads library
 find_package(Threads)
@@ -11,3 +11,6 @@ find_package(Threads)
 # Boost
 find_package(Boost COMPONENTS REQUIRED system thread)
 include_directories(${Boost_INCLUDE_DIR})
+
+# Export some variables
+set(COMMON_LIBS ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})

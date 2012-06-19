@@ -11,46 +11,68 @@
 #include <boost/thread.hpp>
 #include <boost/asio.hpp>
 #include "common/lock_wrapper.h"
+#include "common/debug.h"
 
-// this works with one connection and is expected to work
-// 1) asynchronously
-// 2) called from io_service threads
-// 3) Free() can be called from any thread
-// User is expected to inherit this and implement its own connection handler
-template <class T> class IPConnection
-    : std::enable_shared_from_this<IPConnection<T>> {
+/** Receives and processes one connection to server.
+ * This is an abstract class. User is to inherit this and implement
+ * processing calls.
+ * You should use async operations and always have one read operation
+ * queued. You should also handle socket disconnection, so that connection
+ * is disposed.
+ * \sa IPServer
+ */
+template <class Transport> class IPConnection
+    : std::enable_shared_from_this<IPConnection<Transport>> {
  public:
-  typedef std::shared_ptr<IPConnection<T>> Pointer;
-  typedef std::function<void(Pointer)> Callback;
+  IPConnection(const IPConnection<Transport> &other) = delete;
 
-  explicit IPConnection(Callback &&closed_callback) noexcept {
-    closed_callback_ = closed_callback;
-  }
-
-  IPConnection(const IPConnection<T> &other) = delete;
-
-  typename T::socket &socket() noexcept {
+  /** Connection socket */
+  inline typename Transport::socket &socket() noexcept {
     return socket_;
   }
 
-  virtual void HandleConnected() = 0;
+  inline const typename Transport::socket &socket() const noexcept {
+    return socket_;
+  }
 
+  /** Disconnects client and queues connection for disposal.
+   * Thread-safe.
+   */
   void Free() noexcept {
     if (closing_.exchange(true)) return;
+    PrepareDisconnect();
     socket_.close();
-    // destruction should be done ONLY after we handle all async ops callbacks
+    // Destruction should be done ONLY after we handle all async ops callbacks
     // and from io_service thread.
     // God help you if you destruct this class when unhandled async ops
     // are present.
-    socket_.get_io_service().dispatch(std::bind(closed_callback_, pointer(this)));
+    socket_.get_io_service().dispatch(std::bind(closed_callback_, Pointer(this)));
   }
 
-  bool closing() noexcept {
-    return closing;
+  /** Returns true if connection disposal is pending */
+  inline bool closing() const noexcept {
+    return closing_;
   }
+
+ protected:
+  /** Called after connection is established.
+   * You should start processing connection from there.
+   **/
+  virtual void HandleConnected() noexcept = 0;
+
+  /** Called before forced disconnect (used by Free() method) **/
+  virtual void PrepareDisconnect() noexcept { }
 
  private:
-  typename T::socket socket_;
+  typedef std::shared_ptr<IPConnection<Transport>> Pointer;
+  typedef std::function<void(Pointer)> Callback;
+
+  template <class Transport, class Connection> friend class IPServer;
+
+  explicit IPConnection(Callback &&closed_callback) noexcept :
+    closed_callback(closed_callback_) { }
+
+  typename Transport::socket socket_;
   std::atomic_bool closing_ = false;
   Callback closed_callback_;
 };
@@ -58,6 +80,11 @@ template <class T> class IPConnection
 // multi-threaded TCP/UDP server based on thread pool
 // Connection: class inherited from IPConnection
 // Transport: expected to be boost::asio::ip::tcp or udp
+/** Multi-threaded IP server based on thread pool.
+ * \param Transport expected to be boost::asio::ip tcp or udp
+ * \param Connection expected to be class inherited from IPConnection
+ * \sa IPConnection
+ */
 template <class Transport, class Connection> class IPServer {
  public:
   typedef std::list<typename Connection::Pointer> ConnectionList;
@@ -66,12 +93,16 @@ template <class Transport, class Connection> class IPServer {
     acceptor_(io_service_, endpoint),
       connections_(new ConnectionList()) { }
 
-  IPServer(unsigned short port_num) noexcept :
+  explicit IPServer(unsigned short port_num) noexcept :
       IPServer(Transport::endpoint(port_num)) { }
 
   IPServer(const IPServer &other) = delete;
 
-  void StartService() {
+  /** Starts thread pool which processes I/O.
+   * If pool is already started, does nothing.
+   * Not thread-safe.
+   */
+  void StartService() noexcept {
     using namespace boost::asio;
     using namespace std;
 
@@ -92,35 +123,61 @@ template <class Transport, class Connection> class IPServer {
     working_ = true;
   }
 
-  void StopService() {
+  /** Aborts all operations and sends thread pool signal to stop.
+   * If pool is stopped, does nothing.
+   * Not thread-safe.
+   */
+  void StopService() noexcept {
     if (!working_) return;
     // There is no way to receive callback when all threads are stopped.
-    // One way to do this is to implement own "run" function
+    // One way to do this is to implement our own "run" function
     // which will execute io_service_.run() and then clean up thread
     // after itself.
     // Other way is to clean threads up on next StartService()
     // TODO (abbradar) Maybe later
+    StopListening();
+    DisconnectAll();
     work_.reset();
-    io_service_.stop();
     working_ = false;
   }
 
-  bool is_open() noexcept {
+  /** Returns true if we are accepting new connections */
+  inline bool is_open() const noexcept {
     return acceptor_.is_open();
   }
 
+  /** Return acceptor's local endpoint */
+  inline typename Transport::endpoint local_endpoint() const noexcept {
+    return acceptor_.local_endpoint();
+  }
 
-  void StartListening() {
+  /** Sets now local endpoint for accepting new connections */
+  void set_local_endpoint(const Transport::endpoint &&endpoint) {
+    boost::system::error_code ec;
+    acceptor_.bind(endpoint, ec);
+    if (ec) throw std::runtime_error(ec.message());
+  }
+
+  /** Starts thread pool if not started and starts accepting new connections.
+   * If we are already accepting connections, does nothing.
+   */
+  void StartListening() noexcept {
+    if (acceptor_.is_open()) return;
     StartService();
     acceptor_.listen();
     AcceptNext();
   }
 
+  /** Stops listening for new connections.
+   * If we are stopped already, does nothing.
+   */
   void StopListening() noexcept {
     acceptor_.close();
   }
 
-  void DisconnectAll() {
+  /** Disconnects all clients from server.
+   * If */
+  void DisconnectAll() noexcept {
     // This can be source of deadlocks, exceptions,
     // nukes and other nasty things.
     // We try to lock connections list and send Free() to all connections
@@ -132,11 +189,16 @@ template <class Transport, class Connection> class IPServer {
     }
   }
 
-  int threads_number() noexcept {
+  /** Returns number of threads in the thread pool. */
+  inline int threads_number() const noexcept {
     return threads_number_;
   }
 
-  void set_threads_number(int value) {
+  /** Sets number of threads in the thread pool.
+   * If server is already working, throws exception.
+   * Not thread-safe.
+   */
+  void set_threads_number(const int value) {
     if (working_) {
       throw std::runtime_error("Service is running");
     }
@@ -146,38 +208,44 @@ template <class Transport, class Connection> class IPServer {
     threads_number_ = value;
   }
 
-  bool working() const noexcept {
+  /** Returns true if thread pool is working. */
+  inline bool working() const noexcept {
     return working_;
   }
 
-  // this is sort of expensive getter, because it needs to be thread-safe
-  // so it wraps ConnectionList into "mutex lock wrapper"
+  /** Returns wrapper to connections vector which locks it for reading while not destructed. */
   SharedLockWrapper<boost::shared_mutex, ConnectionList> connections() noexcept {
+    // Returning non-const vector is not a good idea, user can accidentialy modify it which will
+    // break things.
+    // TODO: Consider another way.
     return SharedLockWrapper<boost::shared_mutex, ConnectionList>(connections_mutex_, connections_);
   }
 
  private:
-  // this creates new IPConnection and tries to receive next connection
-  void AcceptNext() {
+  /** Creates new IPConnection and tries to receive next connection. */
+  void AcceptNext() noexcept {
     // if connection is never received, this object will destruct on its own because of shared_ptr
     auto pointer = std::make_shared<IPConnection>(std::bind(&ClosedCallback, this));
     acceptor_.async_accept(pointer->socket(),
                            std::bind(&ConnectedCallback, this, pointer));
   }
 
-  // this is called when connection is established
+  /** Called when connection is established */
   void ConnectedCallback(typename Connection::Pointer &&pointer, boost::system::error_code &&e) {
     if (!e) {
       // without errors? then push connection to list
       boost::unique_lock<boost::shared_mutex> lock(connections_mutex_);
       connections_->push_back(pointer);
+      pointer->HandleConnected();
+      // receive next connection
+      AcceptNext();
+    } else {
+      // TODO: should handle errors there
+      ASSERT(false, e.message());
     }
-    // TODO: should handle errors there
-    // receive next connection
-    AcceptNext();
   }
 
-  // this is called from io_service threads from connection itself
+  /** Called from io_service threads from connection itself */
   void ClosedCallback(typename Connection::Pointer &&pointer) {
     boost::unique_lock<boost::shared_mutex> lock(connections_mutex_);
     connections_->remove(pointer);

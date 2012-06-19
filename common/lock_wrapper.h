@@ -14,13 +14,14 @@ template <class Lock, class Lockable, class Wrapped> class LockWrapper
   }
 
   LockWrapper(const LockWrapper &other) = delete;
+  LockWrapper(const LockWrapper &&other) = delete;
 
-  Wrapped operator*() noexcept
+  Wrapped operator *() noexcept
   {
     return *wrapped_;
   }
 
-  Wrapped operator->() noexcept
+  Wrapped operator ->() noexcept
   {
     return *wrapped_;
   }
