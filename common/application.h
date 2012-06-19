@@ -61,4 +61,9 @@ class Application : public Singleton<Application> {
   bool running_;
 };
 
+template <typename Runnable> inline int ApplicationRun(int argc, const char **argv) {
+  Application::instance().set_runnable(new Runnable());
+  return Application::instance().Run(argc, argv);
+}
+
 #endif // YOBAHACK_COMMON_APPLICATION_H_
