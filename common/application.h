@@ -4,12 +4,20 @@
 #include <memory>
 #include "common/singleton.h"
 
+class Application;
+
 /** Base class for runnable.
  * User should inherit this to create his own runnable which can be assigned to Application.
  * \sa Application
  */
 class Runnable {
  public:
+  Runnable(const Runnable &other) = delete;
+  Runnable(const Runnable &&other) = delete;
+
+ protected:
+  friend class Application;
+
   virtual void Run() = 0;
   virtual void Terminate(int error_code) = 0;
 };
