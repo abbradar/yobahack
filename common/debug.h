@@ -1,10 +1,6 @@
 #ifndef YOBAHACK_COMMON_DEBUG_H_
 #define YOBAHACK_COMMON_DEBUG_H_
 
-#include <sstream>
-#include "common/logging.h"
-#include "common/application.h"
-
 #ifndef DEBUG_LEVEL
 /** Enables various debugging code. It is a number between 0 and 4.
  * 0: All assertions and debug code are disabled.
