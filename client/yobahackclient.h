@@ -13,8 +13,8 @@ class YobaHackClient : public Runnable
  private:
   ~YobaHackClient() = default;
 
-  virtual int Run(int argc, const char **argv) final;
-  virtual void Terminate(int error_code) noexcept final;
+  virtual int Run(int argc, const char **argv);
+  virtual void Terminate(int error_code) noexcept;
 };
 
 #endif // YOBAHACK_CLIENT_YOBAHACKCLIENT_H_

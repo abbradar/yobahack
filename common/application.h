@@ -2,6 +2,8 @@
 #define YOBAHACK_COMMON_APPLICATION_H_
 
 #include <memory>
+#include <type_traits>
+#include <atomic>
 #include "common/singleton.h"
 
 class Application;
@@ -35,8 +37,12 @@ class Application : public Singleton<Application> {
   Application(const Application &other) = delete;
   Application(const Application &&other) = delete;
 
+  /** Starts associated Runnable.
+   * If Runnable is not associated, throws exception.
+   */
   int Run(int argc, const char **argv) noexcept;
 
+  /** Calls Terminate() on associated Runnable and stops application with given error code. */
   void Terminate(int error_code) noexcept;
 
   void Abort() noexcept;
@@ -58,11 +64,12 @@ class Application : public Singleton<Application> {
   ~Application() = default;
 
   std::unique_ptr<Runnable> runnable_;
-  bool running_;
+  std::atomic_bool running_;
 };
 
-template <typename Runnable> inline int ApplicationRun(int argc, const char **argv) {
-  Application::instance().set_runnable(new Runnable());
+template <typename Arg> inline int ApplicationRun(int argc, const char **argv) {
+  static_assert(std::is_base_of<Runnable, Arg>::value, "Given template argument must be class derived from Runnable");
+  Application::instance().set_runnable(new Arg());
   return Application::instance().Run(argc, argv);
 }
 

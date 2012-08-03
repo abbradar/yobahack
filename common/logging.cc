@@ -1,5 +1,8 @@
 #include <iostream>
+#include <exception>
+#include <string>
 #include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/format.hpp>
 #include "debug.h"
 #include "logging.h"
 
@@ -26,21 +29,27 @@ const char *logging::LevelName(const LogMessageLevel level) {
 }
 
 Logger::Logger() noexcept : time_facet_(new TimeFacet("%x %X")) {
-  msg_string_.imbue(locale(msg_string_.getloc(), time_facet_));
+  time_format_.imbue(locale(time_format_.getloc(), time_facet_));
 }
 
-void Logger::Log(LogMessageLevel level, const string msg) noexcept {
+void Logger::Log(LogMessageLevel level, const char *msg) noexcept {
   if (level > level_) return;
 
   if (write_to_stderr_) {
-    msg_string_ << LevelName(level)[0] << " [" << second_clock::local_time() << "] " <<
-                   name_ << ": " << msg << endl;
-    cerr << msg_string_.str();
-    msg_string_.str("");
+    boost::format a;
+    time_format_ << second_clock::local_time();
+    cerr << boost::format("%1 [%2] %3: %4\n") % LevelName(level)[0] % time_format_.str() % name_ % msg;
+    time_format_.str("");
   }
 
-  for (auto &dest : destinations_) {
-    dest(level, msg);
+  try {
+    for (auto &dest : destinations_) {
+      dest(level, msg);
+    }
+  } catch (exception& e) {
+    set_write_to_stderr(true);
+    LogCritical(string("Logger destination throwed an exception: ") + string(e.what()));
+
   }
 }
 
@@ -52,12 +61,12 @@ void Logger::set_write_to_stderr(const bool write_to_stderr) noexcept {
   write_to_stderr_ = write_to_stderr;
 }
 
-void Logger::set_name(const std::string name) noexcept {
+void Logger::set_name(const char *) noexcept {
   name_ = name;
 }
 
 void Logger::set_time_facet(TimeFacet *time_facet) noexcept {
   delete time_facet_;
   time_facet_ = time_facet;
-  msg_string_.imbue(locale(msg_string_.getloc(), time_facet_));
+  time_format_.imbue(locale(time_format_.getloc(), time_facet_));
 }

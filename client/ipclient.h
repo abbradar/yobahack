@@ -4,28 +4,72 @@
 #include <thread>
 #include <memory>
 #include <boost/asio.hpp>
+#include "common/socketwrapper.h"
 
-// asynchronous IP socket client
-// needs to be inherited with some virtual methods defined
-// works in the other thread
-template <class Transport> class IPClient
+/** Asynchronous IP socket client.
+ * Needs to be inherited with some virtual methods defined.
+ * Works in the other thread, some methods are not thread-safe.
+ */
+template <class Protocol> class IPClient :
+    public SocketWrapper<typename Protocol::socket>
 {
 public:
   IPClient();
 
-  void connect(typename Transport::endpoint &&endpoint) {
-    if (connected()) disconnect();
+  /** Starts asynchronous connection to endpoint.
+   * If we are already connected, closes existing connection.
+   * Not thread-safe.
+   */
+  void Connect(typename Protocol::endpoint &&endpoint) {
+    using namespace std;
+
+    if (socket()) disconnect();
+    if (thread_) {
+      thread_->join();
+    }
+    socket().reset(new typename Protocol::socket(io_service_));
     boost::system::error_code error;
-    socket->connect(endpoint);
+    socket()->async_connect(endpoint, std::bind(&HandlePreConnected, this));
+    thread_.reset(new thread(bind((size_t(io_service::*)())&io_service::run, &io_service_)));
   }
 
-  bool connected() const noexcept {
-    return !service_.stopped();
+  /** Starts asynchronous disconnection.
+   * Does nothing if we are not connected.
+   * Not thread-safe.
+   */
+  void Disconnect() {
+    // Same problems as in IPServer; we cannot receive any callback
+    // when io_service will really stop working (to clean up)
+    // and I'm too lazy to write my own Run()
+    // TODO(abbradar) maybe later
+    if (!socket_) return;
+    PrepareDisconnect();
+    socket()->close();
   }
+
+  inline bool connected() const noexcept {
+    if (socket()) {
+      return socket().is_open();
+    } else {
+      return false;
+    }
+  }
+
+protected:
+  virtual void HandleConnected() = 0;
+  virtual void PrepareDisconnect() {};
+  virtual void HandleError(boost::system::error_code &e) {};
 
 private:
-  boost::asio::io_service service_;
-  std::unique_ptr<typename Transport::socket> socket_;
+  void HandlePreConnected(boost::system::error_code &e) {
+    if (!e) {
+      HandleConnected();
+    } else {
+      HandleError(e);
+    }
+  }
+
+  boost::asio::io_service io_service_;
   std::unique_ptr<std::thread> thread_;
 };
 

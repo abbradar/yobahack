@@ -1,6 +1,6 @@
 #include <cstdlib>
 #include <exception>
-#include <sstream>
+#include <string>
 #include "common/logging.h"
 #include "application.h"
 
@@ -8,19 +8,18 @@ using namespace std;
 
 int Application::Run(int argc, const char **argv) noexcept
 {
-  if (running_) {
-    throw runtime_error("Application is already started.");
-  }
   if (!runnable_) {
     throw runtime_error("Runnable is not assigned.");
   }
-  running_ = true;
+  if (running_.exchange(true)) {
+    throw runtime_error("Application is already started.");
+  }
   try {
     return runnable_->Run(argc, argv);
   } catch (exception &e) {
-    stringstream ss;
-    ss << "Unhandled exception from Run(): " << e.what();
-    LogCritical(ss.str());
+    string s("Unhandled exception: ");
+    s.append(e.what());
+    LogCritical(s.c_str());
     Abort();
   }
   return 1;
