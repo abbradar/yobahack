@@ -35,11 +35,9 @@ void EventQueue::store_function(FunctionType func_to_store,int ticks){
 
 void EventQueue::tick(){     //Выполняем функции, чей тик равен 0 и минусуем всем
   if (!main_queue.empty()){  //функциям %%в кармочку%% этот самый тик
-    QueueType::const_iterator it=main_queue.begin();
-    while (it->etick==0){
-      it->efunc();            //Выполняем функцию...
-      main_queue.pop();       //...и выбрасываем ее
-      it=main_queue.begin();  //Переназначаем итератор, а то ПИДОРНЕТ
+    while (main_queue.top().etick==0){
+      main_queue.top().efunc();            //Выполняем функцию...
+      main_queue.pop();                    //...и выбрасываем ее
     }
     for (auto temp_event:main_queue)
       --temp_event.etick;
