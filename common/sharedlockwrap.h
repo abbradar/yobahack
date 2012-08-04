@@ -54,7 +54,7 @@ template <class Wrapped> class SharedLockWrap
 
   inline void Lock() {
 #if DEBUG_LEVEL >= 4
-    AssertMsg(GetLockState() != Unlocked, "Lock is already acquired.");
+    AssertMsg(GetLockState() != kUnlocked, "Lock is already acquired.");
 #endif
     mutex_.lock();
 #if DEBUG_LEVEL >= 4
@@ -144,12 +144,10 @@ template <class Wrapped> class SharedLockWrap
   }
 
   void SetLockState(const LockState &lock_state) noexcept {
-    if (result) {
-      if (!lock_state_.get()) {
-        lock_state_.reset(new LockState(lock_state));
-      } else {
-        *lock_state_.get() = lock_state;
-      }
+    if (!lock_state_.get()) {
+      lock_state_.reset(new LockState(lock_state));
+    } else {
+      *lock_state_.get() = lock_state;
     }
   }
 #endif

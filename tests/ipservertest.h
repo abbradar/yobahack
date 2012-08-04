@@ -9,15 +9,13 @@
 #include "common/defs.h"
 #include "server/ipserver.h"
 
-class TestedIPServer;
-
-class TestedIPConnection : public IPConnection<TestedIPServer> {
+class TestedIPConnection : public IPConnection<GameProtocol> {
  private:
   const size_t kBufferSize = 1024;
-  explicit IPConnection(Server *server) noexcept :
-    IPConnection<TestedIPServer>(server) {}
+  explicit TestedIPConnection(ServerType *server) noexcept :
+    IPConnection<GameProtocol>(server) {}
 
-  virtual void HandleConnected();
+  virtual void HandleConnected() noexcept;
 
   virtual void PrepareDisconnect() noexcept;
 
@@ -26,6 +24,7 @@ class TestedIPConnection : public IPConnection<TestedIPServer> {
   void HandleWrite(const boost::system::error_code &error, std::size_t bytes_transferred);
 
   std::array<kBufferSize> buffer_;
+  bool stop_;
 };
 
 typedef IPServer<TestedIPConnection, GameProtocol> TestedIPServer;

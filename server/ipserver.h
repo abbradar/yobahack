@@ -15,6 +15,8 @@
 #include "common/sharedlockwrap.h"
 #include "common/debug.h"
 
+template <class Connection, class Protocol = boost::asio::ip::tcp> class IPServer;
+
 /** Receives and processes one connection to server.
  * This is an abstract class. User is to inherit this and implement
  * processing calls.
@@ -23,10 +25,12 @@
  * is disposed.
  * \sa IPServer
  */
-template <class Server, class Protocol = typename Server::Protocol>
+template <class Protocol>
     class IPConnection : public SocketWrapper<typename Protocol::socket> {
  public:
-  IPConnection(const IPConnection<Server, Protocol> &other) = delete;
+  typedef IPServer<IPConnection<Protocol>, Protocol> ServerType;
+
+  IPConnection(const IPConnection<Protocol> &other) = delete;
 
   /** Disconnects client and queues connection for disposal.
    * Thread-safe.
@@ -39,7 +43,7 @@ template <class Server, class Protocol = typename Server::Protocol>
     // and from io_service thread.
     // God help you if you destruct this class when unhandled async ops
     // are present.
-    socket().get_io_service().dispatch(std::bind(Server::CloseConnection, server_, this));
+    socket().get_io_service().dispatch(std::bind(ServerType::CloseConnection, server_, this));
   }
 
   /** Returns true if connection disposal is pending */
@@ -47,13 +51,13 @@ template <class Server, class Protocol = typename Server::Protocol>
     return closing_;
   }
 
-  inline Server *server() const noexcept {
+  inline ServerType *server() const noexcept {
     return server_;
   }
 
  protected:  
-  explicit IPConnection(Server *server) noexcept :
-    server_(server) { }
+  explicit IPConnection(ServerType *server) noexcept :
+    server_(server), closing_(false) { }
 
   /** Called after connection is established.
    * You should start processing connection from there.
@@ -64,10 +68,10 @@ template <class Server, class Protocol = typename Server::Protocol>
   virtual void PrepareDisconnect() noexcept { }
 
  private:
-  template <class Protocol, class Connection> friend class Server;
+  friend class IPServer<IPConnection<Protocol>, Protocol>;
 
-  std::atomic_bool closing_ = false;
-  Server *server_;
+  std::atomic_bool closing_;
+  ServerType *server_;
 };
 
 /** Multi-threaded IP server based on thread pool.
@@ -75,9 +79,8 @@ template <class Server, class Protocol = typename Server::Protocol>
  * \param Connection expected to be class inherited from IPConnection
  * \sa IPConnection
  */
-template <class Connection, class Protocol = boost::asio::ip::tcp> class IPServer {
+template <class Connection, class Protocol> class IPServer {
  public:
-  typedef Protocol Protocol;
   typedef std::unique_ptr<Connection> ConnectionPointer;
   typedef std::list<ConnectionPointer> ConnectionList;
 
@@ -108,7 +111,7 @@ template <class Connection, class Protocol = boost::asio::ip::tcp> class IPServe
     // this thing prevents io_service from going out from run() loop
     work_.reset(new io_service::work(io_service_));
     // spawn threads for io_service::run event loop
-    for (int i = 0; i < threads_number; ++i) {
+    for (int i = 0; i < threads_number_; ++i) {
       threads_.push_back(thread(bind((size_t(io_service::*)())&io_service::run, &io_service_)));
     }
     working_ = true;
@@ -143,7 +146,7 @@ template <class Connection, class Protocol = boost::asio::ip::tcp> class IPServe
   }
 
   /** Sets now local endpoint for accepting new connections */
-  void set_local_endpoint(const Protocol::endpoint &&endpoint) {
+  void set_local_endpoint(const typename Protocol::endpoint &&endpoint) {
     boost::system::error_code ec;
     acceptor_.bind(endpoint, ec);
     if (ec) throw std::runtime_error(ec.message());
@@ -203,12 +206,13 @@ template <class Connection, class Protocol = boost::asio::ip::tcp> class IPServe
   /** Close and dispose of connection by pointer */
   void CloseConnection(Connection *pointer) {
     connections_.Lock();
-    connections_->remove_if([pointer](const Connection::Pointer &p) {
-                              if (p == pointer)
+    connections_->remove_if([pointer](const typename Connection::Pointer &p) -> bool {
+                              if (p == pointer) {
                                 if (p->closing())
                                   return true;
                                 else
                                   p->Free();
+                              }
                               return false;
                             });
     connections_.Unlock();
@@ -227,10 +231,11 @@ template <class Connection, class Protocol = boost::asio::ip::tcp> class IPServe
  private:
   /** Creates new IPConnection and tries to receive next connection. */
   void AcceptNext() noexcept {
+    auto pointer = std::unique_ptr<Connection>(new Connection());
     // if connection is never received, this object will destruct on its own because of unique_ptr
     acceptor_.async_accept(pointer->socket(),
                            std::bind(&HandleConnected,this,
-                                     std::make_unique<IPConnection>(this)));
+                                     std::move(pointer)));
   }
 
   /** Called when connection is established */
