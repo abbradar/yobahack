@@ -2,8 +2,7 @@
 #define YOBAHACK_COMMON_DEFS_H_
 
 #include <cstdint>
-
-class boost::asio::ip::tcp;
+#include <boost/asio/ip/tcp.hpp>
 
 typedef boost::asio::ip::tcp GameProtocol;
 

@@ -9,29 +9,32 @@
 #include "common/defs.h"
 #include "server/ipserver.h"
 
-class TestedIPConnection : public IPConnection<GameProtocol> {
+class TestedIPConnection : public IPConnection<GameProtocol, TestedIPConnection> {
  private:
-  const size_t kBufferSize = 1024;
-  explicit TestedIPConnection(ServerType *server) noexcept :
-    IPConnection<GameProtocol>(server) {}
+  static const size_t kBufferSize = 1024;
+
+  explicit TestedIPConnection(boost::asio::io_service &io_service, ServerType *server) noexcept :
+    IPConnection<GameProtocol, TestedIPConnection>(io_service, server), stop_(false) {}
 
   virtual void HandleConnected() noexcept;
 
   virtual void PrepareDisconnect() noexcept;
 
-  void HandleRead(const boost::system::error_code &error, std::size_t bytes_transferred);
+  void HandleRead(const boost::system::error_code &error, std::size_t bytes_transferred) noexcept;
 
-  void HandleWrite(const boost::system::error_code &error, std::size_t bytes_transferred);
+  void HandleWrite(const boost::system::error_code &error, std::size_t bytes_transferred) noexcept;
 
-  std::array<kBufferSize> buffer_;
+  std::array<char, kBufferSize> buffer_;
   bool stop_;
-};
 
-typedef IPServer<TestedIPConnection, GameProtocol> TestedIPServer;
+  friend class IPServer<TestedIPConnection, GameProtocol>;
+};
 
 class IPServerTest : public testing::Test {
  public:
-  typedef IPServer<GameProtocol, TestedIPConnection> TestedIPServer;
+  typedef IPServer<TestedIPConnection, GameProtocol> TestedIPServer;
+
+  IPServerTest() : server_(typename GameProtocol::endpoint(GameProtocol::v4(), kGamePort)) { }
 
  protected:
   TestedIPServer server_;

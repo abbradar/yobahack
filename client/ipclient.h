@@ -10,11 +10,10 @@
  * Needs to be inherited with some virtual methods defined.
  * Works in the other thread, some methods are not thread-safe.
  */
-template <class Protocol> class IPClient :
-    public SocketWrapper<typename Protocol::socket>
-{
+template <class Protocol>
+ class IPClient : public SocketWrapper<typename Protocol::socket> {
 public:
-  IPClient();
+  IPClient() noexcept : SocketWrapper<typename Protocol::socket>(io_service_) { }
 
   /** Starts asynchronous connection to endpoint.
    * If we are already connected, closes existing connection.
@@ -70,6 +69,7 @@ private:
   }
 
   boost::asio::io_service io_service_;
+  typename Protocol::socket socket_;
   std::unique_ptr<std::thread> thread_;
 };
 

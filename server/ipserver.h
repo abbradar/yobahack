@@ -11,11 +11,13 @@
 #include <functional>
 #include <boost/thread.hpp>
 #include <boost/asio.hpp>
+#include "common/sharedlockwrapper.h"
 #include "common/socketwrapper.h"
-#include "common/sharedlockwrap.h"
 #include "common/debug.h"
+#include "common/logging.h"
 
-template <class Connection, class Protocol = boost::asio::ip::tcp> class IPServer;
+template <class Connection, class Protocol = boost::asio::ip::tcp>
+ class IPServer;
 
 /** Receives and processes one connection to server.
  * This is an abstract class. User is to inherit this and implement
@@ -25,12 +27,12 @@ template <class Connection, class Protocol = boost::asio::ip::tcp> class IPServe
  * is disposed.
  * \sa IPServer
  */
-template <class Protocol>
-    class IPConnection : public SocketWrapper<typename Protocol::socket> {
+template <class Protocol, class Descedant>
+ class IPConnection : public SocketWrapper<typename Protocol::socket> {
  public:
-  typedef IPServer<IPConnection<Protocol>, Protocol> ServerType;
+  typedef IPServer<Descedant, Protocol> ServerType;
 
-  IPConnection(const IPConnection<Protocol> &other) = delete;
+  IPConnection(const IPConnection<Protocol, Descedant> &other) = delete;
 
   /** Disconnects client and queues connection for disposal.
    * Thread-safe.
@@ -38,7 +40,11 @@ template <class Protocol>
   void Free() noexcept {
     if (closing_.exchange(true)) return;
     PrepareDisconnect();
-    socket().close();
+    try {
+      Disconnect();
+    } catch (const std::exception &e) {
+      LogWarning(e.what());
+    }
     // Destruction should be done ONLY after we handle all async ops callbacks
     // and from io_service thread.
     // God help you if you destruct this class when unhandled async ops
@@ -56,8 +62,8 @@ template <class Protocol>
   }
 
  protected:  
-  explicit IPConnection(ServerType *server) noexcept :
-    server_(server), closing_(false) { }
+  explicit IPConnection(boost::asio::io_service &io_service, ServerType *server) noexcept :
+    SocketWrapper<typename Protocol::socket>(io_service), server_(server), closing_(false) { }
 
   /** Called after connection is established.
    * You should start processing connection from there.
@@ -68,10 +74,10 @@ template <class Protocol>
   virtual void PrepareDisconnect() noexcept { }
 
  private:
-  friend class IPServer<IPConnection<Protocol>, Protocol>;
+  friend class IPServer<Descedant, Protocol>;
 
-  std::atomic_bool closing_;
   ServerType *server_;
+  std::atomic_bool closing_;
 };
 
 /** Multi-threaded IP server based on thread pool.
@@ -87,9 +93,6 @@ template <class Connection, class Protocol> class IPServer {
   explicit IPServer(const typename Protocol::endpoint &&endpoint) noexcept :
     acceptor_(io_service_, endpoint),
       connections_(new ConnectionList()) { }
-
-  explicit IPServer(const std::uint16_t port_num) noexcept :
-      IPServer(Protocol::endpoint(port_num)) { }
 
   IPServer(const IPServer &other) = delete;
 
@@ -224,14 +227,14 @@ template <class Connection, class Protocol> class IPServer {
   }
 
   /** Returns wrapper to connections vector */
-  inline SharedLockWrap<ConnectionList> &connections() noexcept {
+  inline SharedLockWrapper<ConnectionList> &connections() noexcept {
     return connections_;
   }
 
  private:
   /** Creates new IPConnection and tries to receive next connection. */
   void AcceptNext() noexcept {
-    auto pointer = std::unique_ptr<Connection>(new Connection());
+    auto pointer = std::unique_ptr<Connection>(new Connection(io_service_, this));
     // if connection is never received, this object will destruct on its own because of unique_ptr
     acceptor_.async_accept(pointer->socket(),
                            std::bind(&HandleConnected,this,
@@ -258,7 +261,7 @@ template <class Connection, class Protocol> class IPServer {
   std::unique_ptr<boost::asio::io_service::work> work_;
   typename Protocol::acceptor acceptor_;
   std::list<std::thread> threads_;
-  SharedLockWrap<ConnectionList> connections_;
+  SharedLockWrapper<ConnectionList> connections_;
   int threads_number_ = 2;
   bool working_ = false;
 };

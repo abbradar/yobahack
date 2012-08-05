@@ -1,31 +1,29 @@
 #include <string>
 #include <array>
 #include <chrono>
+#include <functional>
 #include <boost/asio.hpp>
 #include "ipservertest.h"
 
 using namespace std;
 using namespace std::chrono;
 
-void TestedIPConnection::HandleConnected()
-{
-  ReadSome(boost::asio::buffer(buffer_), HandleRead);
+void TestedIPConnection::HandleConnected() noexcept {
+  ReadSome(boost::asio::buffer(buffer_), std::bind(&TestedIPConnection::HandleRead, this));
 }
 
-void TestedIPConnection::PrepareDisconnect()
-{
+void TestedIPConnection::PrepareDisconnect() noexcept {
 }
 
-void TestedIPConnection::HandleRead(const boost::system::error_code &error, std::size_t bytes_transferred)
-{
+void TestedIPConnection::HandleRead(const boost::system::error_code &error, std::size_t bytes_transferred) noexcept {
   if (buffer_[bytes_transferred - 1] == '\n') stop_ = true;
-  Write(boost::asio::buffer(buffer_, bytes_transferred), HandleWrite);
+  Write(boost::asio::buffer(buffer_, bytes_transferred),
+                     std::bind(&TestedIPConnection::HandleWrite, this));
 }
 
-void TestedIPConnection::HandleWrite(const boost::system::error_code &error, std::size_t bytes_transferred)
-{
+void TestedIPConnection::HandleWrite(const boost::system::error_code &error, std::size_t bytes_transferred) noexcept {
   if (stop_) Disconnect();
-  else ReadSome(boost::asio::buffer(buffer_), HandleRead);
+  else ReadSome(boost::asio::buffer(buffer_), std::bind(&TestedIPConnection::HandleRead, this));
 }
 
 TEST_F(IPServerTest, OneConnection) {
@@ -50,7 +48,7 @@ TEST_F(IPServerTest, OneConnection) {
     ASSERT_LT(time_span.count(), timeout * 10);
     string curr;
     curr.reserve(curr.size());
-    socket_.read_some(boost::asio::buffer(curr), error);
+    socket.read_some(boost::asio::buffer(curr), error);
     ASSERT_FALSE(error);
     buff += curr;
   }
@@ -63,7 +61,7 @@ TEST_F(IPServerTest, OneConnection) {
     duration<float> time_span = duration_cast<duration<float>>(cur_p - start_p);
     EXPECT_LT(time_span.count(), timeout);
     ASSERT_LT(time_span.count(), timeout * 10);
-    socket_.read_some(boost::asio::buffer(buff), error);
+    socket.read_some(boost::asio::buffer(buff), error);
   }
   ASSERT_EQ(error, boost::asio::error::eof);
 }
