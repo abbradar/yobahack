@@ -1,12 +1,12 @@
 syntax: regexp
 
-/CMakeLists\.txt\.user$
+CMakeLists\.txt\.user$
 \.autosave$
 -build$
 \.un~$
-/CMakeFiles$
-/Makefile$
-/CMakeCache\.txt$
-/CTestTestfile\.cmake$
-/cmake_install\.cmake$
-/Testing$
+CMakeFiles$
+Makefile$
+CMakeCache\.txt$
+CTestTestfile\.cmake$
+cmake_install\.cmake$
+Testing$
