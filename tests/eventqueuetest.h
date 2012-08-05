@@ -6,9 +6,5 @@
 
 class EventQueueTest : public ::testing::Test {
   protected:
-    EventQueue eq1;
-    EventQueue eq2;
-    EventQueue eq3;
-    virtual void SetUp() {
-    }
+    EventQueue eq_;
 };
