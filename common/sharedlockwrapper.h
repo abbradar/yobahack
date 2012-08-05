@@ -1,5 +1,5 @@
-#ifndef YOBAHACK_COMMON_LOCK_WRAPPER_H_
-#define YOBAHACK_COMMON_LOCK_WRAPPER_H_
+#ifndef YOBAHACK_SHARED_LOCK_WRAPPER_H_
+#define YOBAHACK_SHARED_LOCK_WRAPPER_H_
 
 #include <memory>
 #include <boost/thread.hpp>
@@ -7,20 +7,22 @@
 
 /** Wraps around given thread-unsafe object and provides shared access between threads.
  If DEBUG_LEVEL is greater or equal 4, checks ownership of lock on each access. */
-template <class Wrapped> class SharedLockWrap
+template <class Wrapped> class SharedLockWrapper
 {
  public:
   typedef std::unique_ptr<Wrapped> Pointer;
 
-  SharedLockWrap() = default;
+  SharedLockWrapper() = default;
 
-  explicit SharedLockWrap(Pointer &&wrapped) noexcept
+  explicit SharedLockWrapper(Pointer &&wrapped) noexcept
+    : wrapped_(wrapped) {}
+  explicit SharedLockWrapper(Wrapped *wrapped) noexcept
     : wrapped_(wrapped) {}
 
-  SharedLockWrap(const SharedLockWrap &other) = delete;
-  SharedLockWrap(const SharedLockWrap &&other) = delete;
+  SharedLockWrapper(const SharedLockWrapper &other) = delete;
+  SharedLockWrapper(const SharedLockWrapper &&other) = delete;
 
-  inline const Pointer &shared() const noexcept {
+  inline Pointer &shared() noexcept {
 #if DEBUG_LEVEL >= 4
     AssertMsg(GetLockState() < kShared, "Shared ownership is not acquired.");
 #endif
@@ -34,11 +36,11 @@ template <class Wrapped> class SharedLockWrap
     return wrapped_;
   }
 
-  inline Pointer operator ->() const noexcept {
+  inline Pointer &operator ->() noexcept {
     return shared();
   }
 
-  inline Wrapped &operator *() const noexcept {
+  inline Wrapped &operator *() noexcept {
     return *(shared().get());
   }
 
@@ -153,4 +155,4 @@ template <class Wrapped> class SharedLockWrap
 #endif
 };
 
-#endif // YOBAHACK_COMMON_LOCK_WRAPPER_H_
+#endif // YOBAHACK_SHARED_LOCK_WRAPPER_H_

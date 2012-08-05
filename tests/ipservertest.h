@@ -9,12 +9,12 @@
 #include "common/defs.h"
 #include "server/ipserver.h"
 
-class TestedIPConnection : public IPConnection<GameProtocol, TestedIPConnection> {
+class TestedIPConnection : public IPConnection<TestedIPConnection, GameProtocol> {
  private:
   static const size_t kBufferSize = 1024;
 
   explicit TestedIPConnection(boost::asio::io_service &io_service, ServerType *server) noexcept :
-    IPConnection<GameProtocol, TestedIPConnection>(io_service, server), stop_(false) {}
+    IPConnection<TestedIPConnection, GameProtocol>(io_service, server), stop_(false) {}
 
   virtual void HandleConnected() noexcept;
 

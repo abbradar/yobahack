@@ -7,8 +7,10 @@
 #include <boost/asio.hpp>
 
 /** Class that wraps socket operations */
-template <class Socket> class SocketWrapper {
+template <class Protocol> class SocketWrapper {
  public:
+  typedef typename Protocol::socket Socket;
+
   inline Socket &socket() noexcept {
     return socket_;
   }

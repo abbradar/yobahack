@@ -16,7 +16,7 @@
 #include "common/debug.h"
 #include "common/logging.h"
 
-template <class Connection, class Protocol = boost::asio::ip::tcp>
+template <class Connection, class Protocol>
  class IPServer;
 
 /** Receives and processes one connection to server.
@@ -27,12 +27,12 @@ template <class Connection, class Protocol = boost::asio::ip::tcp>
  * is disposed.
  * \sa IPServer
  */
-template <class Protocol, class Descedant>
- class IPConnection : public SocketWrapper<typename Protocol::socket> {
+template <class Connection, class Protocol>
+ class IPConnection : public SocketWrapper<Protocol> {
  public:
-  typedef IPServer<Descedant, Protocol> ServerType;
+  typedef IPServer<Connection, Protocol> ServerType;
 
-  IPConnection(const IPConnection<Protocol, Descedant> &other) = delete;
+  IPConnection(const IPConnection<Connection, Protocol> &other) = delete;
 
   /** Disconnects client and queues connection for disposal.
    * Thread-safe.
@@ -63,7 +63,7 @@ template <class Protocol, class Descedant>
 
  protected:  
   explicit IPConnection(boost::asio::io_service &io_service, ServerType *server) noexcept :
-    SocketWrapper<typename Protocol::socket>(io_service), server_(server), closing_(false) { }
+    SocketWrapper<Protocol>(io_service), server_(server), closing_(false) { }
 
   /** Called after connection is established.
    * You should start processing connection from there.
@@ -74,7 +74,7 @@ template <class Protocol, class Descedant>
   virtual void PrepareDisconnect() noexcept { }
 
  private:
-  friend class IPServer<Descedant, Protocol>;
+  friend class IPServer<Connection, Protocol>;
 
   ServerType *server_;
   std::atomic_bool closing_;
@@ -237,7 +237,7 @@ template <class Connection, class Protocol> class IPServer {
     auto pointer = std::unique_ptr<Connection>(new Connection(io_service_, this));
     // if connection is never received, this object will destruct on its own because of unique_ptr
     acceptor_.async_accept(pointer->socket(),
-                           std::bind(&HandleConnected,this,
+                           std::bind(&IPServer<Connection, Protocol>::HandleConnected, this,
                                      std::move(pointer)));
   }
 
@@ -253,7 +253,7 @@ template <class Connection, class Protocol> class IPServer {
       AcceptNext();
     } else {
       // TODO: should handle errors there
-      AssertMsg(false, e.message());
+      AssertMsg(false, e.message().c_str());
     }
   }
 
